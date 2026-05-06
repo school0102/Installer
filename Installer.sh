@@ -4,7 +4,7 @@
 # Configurações
 # ============================
 
-GITHUB_URL="https://github.com/school0102/Google-Chrome-Extension"
+GITHUB_URL="https://raw.githubusercontent.com/school0102/Google-Chrome-Extension"
 EXT_PATH="$HOME/extensao-chrome"
 CHROME_BIN=$(which google-chrome || which chromium)
 TEMP_PROFILE="$HOME/.chrome-temp-profile"
@@ -16,7 +16,6 @@ TEMP_PROFILE="$HOME/.chrome-temp-profile"
 echo "🚀 Instalando/atualizando extensão do GitHub..."
 
 # Verifica se o git está instalado
-bash <(curl -s https://raw.githubusercontent.com/school0102/Google-Chrome-Extension)
 
 # Clona ou atualiza a extensão
 if [ -d "$EXT_PATH" ]; then
