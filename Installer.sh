@@ -23,7 +23,7 @@ if [ -d "$EXT_PATH" ]; then
     cd "$EXT_PATH" && git pull
 else
     echo "📦 Clonando extensão..."
-    bash <(curl -s "$GITHUB_URL" "$EXT_PATH")
+    curl -sL "$GITHUB_URL" -o "$EXT_PATH"
 fi
 
 # Verifica se o manifest.json existe
