@@ -5,7 +5,7 @@
 # ============================
 
 GITHUB_URL="https://raw.githubusercontent.com/school0102/Google-Chrome-Extension"
-EXT_PATH="$HOME/extensao-chrome"
+EXT_PATH="$HOME/Google-Chrome-Extension"
 CHROME_BIN=$(which google-chrome || which chromium)
 TEMP_PROFILE="$HOME/.chrome-temp-profile"
 
