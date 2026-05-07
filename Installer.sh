@@ -4,10 +4,12 @@
 # Configurações
 # ============================
 
-GITHUB_URL="https://raw.githubusercontent.com/school0102/Google-Chrome-Extension"
+GITHUB_REPO="https://github.com/school0102/Google-Chrome-Extension.git"
 EXT_PATH="$HOME/Google-Chrome-Extension"
-CHROME_BIN=$(which google-chrome || which chromium)
 TEMP_PROFILE="$HOME/.chrome-temp-profile"
+
+# Detecta o Chrome ou Chromium
+CHROME_BIN=$(command -v google-chrome || command -v chromium)
 
 # ============================
 # Função principal
@@ -16,6 +18,10 @@ TEMP_PROFILE="$HOME/.chrome-temp-profile"
 echo "🚀 Instalando/atualizando extensão do GitHub..."
 
 # Verifica se o git está instalado
+if ! command -v git >/dev/null 2>&1; then
+    echo "❌ Git não encontrado. Instale o Git antes de continuar."
+    exit 1
+fi
 
 # Clona ou atualiza a extensão
 if [ -d "$EXT_PATH" ]; then
@@ -23,7 +29,7 @@ if [ -d "$EXT_PATH" ]; then
     cd "$EXT_PATH" && git pull
 else
     echo "📦 Clonando extensão..."
-    curl -sL "$GITHUB_URL" -o "$EXT_PATH"
+    git clone "$GITHUB_REPO" "$EXT_PATH"
 fi
 
 # Verifica se o manifest.json existe
@@ -43,7 +49,6 @@ fi
 # ============================
 
 echo "🛑 Fechando instâncias abertas do Chrome (se houver)..."
-# Fecha todos os processos do Chrome do usuário atual
 pkill -f "$CHROME_BIN" 2>/dev/null || true
 sleep 3
 
@@ -68,3 +73,5 @@ echo "🌟 Abrindo Chrome com a extensão em modo desenvolvedor..."
     --disable-extensions-except="$EXT_PATH" \
     --no-first-run \
     >/dev/null 2>&1 &
+
+echo "✅ Chrome iniciado com a extensão!"
