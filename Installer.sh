@@ -4,33 +4,43 @@
 # Configurações
 # ============================
 
-GITHUB_REPO="https://github.com/school0102/Google-Chrome-Extension.git"
+ZIP_URL="https://github.com/school0102/Google-Chrome-Extension/archive/refs/heads/main.zip"
 EXT_PATH="$HOME/Google-Chrome-Extension"
 TEMP_PROFILE="$HOME/.chrome-temp-profile"
+TMP_ZIP="/tmp/extension.zip"
 
 # Detecta o Chrome ou Chromium
 CHROME_BIN=$(command -v google-chrome || command -v chromium)
 
 # ============================
-# Função principal
+# Baixa e extrai a extensão
 # ============================
 
 echo "🚀 Instalando/atualizando extensão do GitHub..."
 
-# Verifica se o git está instalado
-if ! command -v git >/dev/null 2>&1; then
-    echo "❌ Git não encontrado. Instale o Git antes de continuar."
-    exit 1
+# Cria pasta de destino se não existir
+mkdir -p "$EXT_PATH"
+
+# Baixa o ZIP do GitHub
+echo "📦 Baixando extensão..."
+curl -L "$ZIP_URL" -o "$TMP_ZIP"
+
+# Remove conteúdo antigo para evitar conflito
+rm -rf "$EXT_PATH"/*
+
+# Extrai ZIP
+echo "📂 Extraindo arquivos..."
+unzip -q "$TMP_ZIP" -d "$EXT_PATH"
+
+# O GitHub coloca tudo dentro de uma subpasta com '-main', vamos mover para EXT_PATH
+SUBDIR=$(find "$EXT_PATH" -mindepth 1 -maxdepth 1 -type d | head -n 1)
+if [ -d "$SUBDIR" ]; then
+    mv "$SUBDIR"/* "$EXT_PATH"/
+    rm -rf "$SUBDIR"
 fi
 
-# Clona ou atualiza a extensão
-if [ -d "$EXT_PATH" ]; then
-    echo "📦 Atualizando extensão existente..."
-    cd "$EXT_PATH" && git pull
-else
-    echo "📦 Clonando extensão..."
-    git clone "$GITHUB_REPO" "$EXT_PATH"
-fi
+# Remove ZIP temporário
+rm "$TMP_ZIP"
 
 # Verifica se o manifest.json existe
 if [ ! -f "$EXT_PATH/manifest.json" ]; then
