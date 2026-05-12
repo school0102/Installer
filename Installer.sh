@@ -1,39 +1,44 @@
 #!/bin/bash
 
-# ============================
-# Configurações
-# ============================
+# =========================
+# CONFIG
+# =========================
 
 ZIP_URL="https://github.com/school0102/Google-Chrome-Extension/archive/refs/heads/main.zip"
+
 EXT_PATH="$HOME/Google-Chrome-Extension"
 TMP_ZIP="/tmp/extension.zip"
 
-# Detecta Chrome/Chromium
+# =========================
+# DETECTA CHROME
+# =========================
+
 CHROME_BIN=$(
     command -v google-chrome ||
+    command -v google-chrome-stable ||
     command -v chromium ||
     command -v chromium-browser
 )
 
-# ============================
-# Verificações
-# ============================
-
 if [ -z "$CHROME_BIN" ]; then
-    echo "❌ Chrome/Chromium não encontrado."
+    echo "❌ Chrome/Chromium não encontrado"
     exit 1
 fi
 
+# =========================
+# DEPENDÊNCIAS
+# =========================
+
 for cmd in curl unzip; do
-    if ! command -v "$cmd" &> /dev/null; then
-        echo "❌ $cmd não encontrado."
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+        echo "❌ Dependência faltando: $cmd"
         exit 1
     fi
 done
 
-# ============================
-# Baixar extensão
-# ============================
+# =========================
+# BAIXA EXTENSÃO
+# =========================
 
 echo "📦 Baixando extensão..."
 
@@ -43,13 +48,13 @@ rm -rf "$EXT_PATH"/*
 curl -L "$ZIP_URL" -o "$TMP_ZIP"
 
 if [ ! -f "$TMP_ZIP" ]; then
-    echo "❌ Falha ao baixar ZIP."
+    echo "❌ Falha ao baixar ZIP"
     exit 1
 fi
 
-# ============================
-# Extrair extensão
-# ============================
+# =========================
+# EXTRAI
+# =========================
 
 echo "📂 Extraindo..."
 
@@ -59,55 +64,72 @@ SUBDIR=$(find "$EXT_PATH" -mindepth 1 -maxdepth 1 -type d | head -n 1)
 
 if [ -d "$SUBDIR" ]; then
     shopt -s dotglob
-    mv "$SUBDIR"/* "$EXT_PATH"/ 2>/dev/null
+    mv "$SUBDIR"/* "$EXT_PATH"/
     shopt -u dotglob
     rm -rf "$SUBDIR"
 fi
 
 rm -f "$TMP_ZIP"
 
-# ============================
-# Verifica manifest
-# ============================
+# =========================
+# VERIFICA MANIFEST
+# =========================
 
 if [ ! -f "$EXT_PATH/manifest.json" ]; then
-    echo "❌ manifest.json não encontrado."
+    echo "❌ manifest.json não encontrado"
     exit 1
 fi
 
-# ============================
-# Descobre perfil padrão
-# ============================
+# =========================
+# PERFIL REAL
+# =========================
 
-USER_DATA_DIR="$HOME/.config/google-chrome"
-
-if [ ! -d "$USER_DATA_DIR" ]; then
-    USER_DATA_DIR="$HOME/.config/chromium"
+if [ -d "$HOME/.config/google-chrome" ]; then
+    USER_DATA="$HOME/.config/google-chrome"
+elif [ -d "$HOME/.config/chromium" ]; then
+    USER_DATA="$HOME/.config/chromium"
+else
+    echo "❌ Perfil do Chrome não encontrado"
+    exit 1
 fi
 
-# ============================
-# Fecha Chrome
-# ============================
+# =========================
+# FECHA CHROME
+# =========================
 
 echo "🛑 Fechando Chrome..."
 
 pkill -f chrome 2>/dev/null || true
 pkill -f chromium 2>/dev/null || true
 
-sleep 3
+sleep 4
 
-# ============================
-# Inicia com extensão
-# ============================
+# =========================
+# ABRE COM EXTENSÃO
+# =========================
 
-echo "🚀 Iniciando Chrome com a extensão..."
+echo "🚀 Abrindo Chrome..."
 
 "$CHROME_BIN" \
-    --user-data-dir="$USER_DATA_DIR" \
-    --load-extension="$EXT_PATH" \
+    --user-data-dir="$USER_DATA" \
+    --disable-extensions-file-access-check \
     --disable-extensions-except="$EXT_PATH" \
+    --load-extension="$EXT_PATH" \
     --restore-last-session \
+    --enable-unsafe-extension-debugging \
     --no-first-run \
     >/dev/null 2>&1 &
 
-echo "✅ Extensão carregada!"
+sleep 5
+
+# =========================
+# VERIFICA
+# =========================
+
+if pgrep -f "$CHROME_BIN" >/dev/null; then
+    echo "✅ Chrome iniciado"
+    echo "✅ Extensão carregada em:"
+    echo "   $EXT_PATH"
+else
+    echo "❌ Falha ao iniciar Chrome"
+fi
