@@ -6,82 +6,93 @@
 
 ZIP_URL="https://github.com/school0102/Google-Chrome-Extension/archive/refs/heads/main.zip"
 EXT_PATH="$HOME/Google-Chrome-Extension"
-TEMP_PROFILE="$HOME/.chrome-temp-profile"
 TMP_ZIP="/tmp/extension.zip"
 
-# Detecta o Chrome ou Chromium
-CHROME_BIN=$(command -v google-chrome || command -v chromium)
+# Detecta Chrome ou Chromium
+CHROME_BIN=$(command -v google-chrome || command -v chromium || command -v chromium-browser)
 
 # ============================
-# Baixa e extrai a extensão
+# Verificações
 # ============================
 
-echo "🚀 Instalando/atualizando extensão do GitHub..."
+if [ -z "$CHROME_BIN" ]; then
+    echo "❌ Google Chrome ou Chromium não encontrado."
+    exit 1
+fi
 
-# Cria pasta de destino se não existir
+if ! command -v curl &> /dev/null; then
+    echo "❌ curl não encontrado."
+    exit 1
+fi
+
+if ! command -v unzip &> /dev/null; then
+    echo "❌ unzip não encontrado."
+    exit 1
+fi
+
+# ============================
+# Baixa extensão
+# ============================
+
+echo "🚀 Instalando/atualizando extensão..."
+
+# Cria pasta da extensão
 mkdir -p "$EXT_PATH"
 
-# Baixa o ZIP do GitHub
-echo "📦 Baixando extensão..."
-curl -L "$ZIP_URL" -o "$TMP_ZIP"
-
-# Remove conteúdo antigo para evitar conflito
+# Remove conteúdo antigo
 rm -rf "$EXT_PATH"/*
 
-# Extrai ZIP
+# Baixa ZIP
+echo "📦 Baixando arquivos..."
+curl -L "$ZIP_URL" -o "$TMP_ZIP"
+
+# Verifica download
+if [ ! -f "$TMP_ZIP" ]; then
+    echo "❌ Falha ao baixar extensão."
+    exit 1
+fi
+
+# ============================
+# Extrai extensão
+# ============================
+
 echo "📂 Extraindo arquivos..."
+
 unzip -q "$TMP_ZIP" -d "$EXT_PATH"
 
-# O GitHub coloca tudo dentro de uma subpasta com '-main', vamos mover para EXT_PATH
+# Move arquivos da subpasta "-main"
 SUBDIR=$(find "$EXT_PATH" -mindepth 1 -maxdepth 1 -type d | head -n 1)
-if [ -d "$SUBDIR" ]; then
-    mv "$SUBDIR"/* "$EXT_PATH"/
+
+if [ -n "$SUBDIR" ] && [ -d "$SUBDIR" ]; then
+    mv "$SUBDIR"/* "$EXT_PATH"/ 2>/dev/null
+    mv "$SUBDIR"/.* "$EXT_PATH"/ 2>/dev/null || true
     rm -rf "$SUBDIR"
 fi
 
 # Remove ZIP temporário
-rm "$TMP_ZIP"
+rm -f "$TMP_ZIP"
 
-# Verifica se o manifest.json existe
+# ============================
+# Verifica manifest
+# ============================
+
 if [ ! -f "$EXT_PATH/manifest.json" ]; then
-    echo "❌ Arquivo manifest.json não encontrado em $EXT_PATH"
-    exit 1
-fi
-
-# Checa se o Chrome está instalado
-if [ -z "$CHROME_BIN" ]; then
-    echo "❌ Chrome ou Chromium não encontrado. Instale antes de continuar."
+    echo "❌ manifest.json não encontrado em:"
+    echo "   $EXT_PATH"
     exit 1
 fi
 
 # ============================
-# Fecha instâncias abertas do Chrome
+# Inicia Chrome na sessão atual
 # ============================
 
-echo "🛑 Fechando instâncias abertas do Chrome (se houver)..."
-pkill -f "$CHROME_BIN" 2>/dev/null || true
-sleep 3
+echo "🌟 Abrindo Chrome com a extensão..."
 
-# ============================
-# Cria perfil temporário
-# ============================
-
-if [ ! -d "$TEMP_PROFILE" ]; then
-    echo "🗂️ Criando perfil temporário em $TEMP_PROFILE..."
-    mkdir -p "$TEMP_PROFILE"
-fi
-
-# ============================
-# Executa o Chrome com a extensão
-# ============================
-
-echo "🌟 Abrindo Chrome com a extensão em modo desenvolvedor..."
 "$CHROME_BIN" \
-    --user-data-dir="$TEMP_PROFILE" \
     --load-extension="$EXT_PATH" \
-    --auto-open-devtools-for-tabs \
     --disable-extensions-except="$EXT_PATH" \
     --no-first-run \
     >/dev/null 2>&1 &
 
-echo "✅ Chrome iniciado com a extensão!"
+echo "✅ Extensão carregada com sucesso!"
+echo "📂 Caminho da extensão: $EXT_PATH"
