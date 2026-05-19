@@ -2,138 +2,208 @@
 
 set -Eeuo pipefail
 
-# =========================
+# =========================================================
 # CONFIG
-# =========================
+# =========================================================
 
 ZIP_URL="https://github.com/school0102/Google-Chrome-Extension/archive/refs/heads/main.zip"
 
-EXT_PATH="$HOME/.local/share/google-chrome-extension"
+BASE_DIR="$HOME/.local/share/custom-extension-loader"
+EXT_DIR="$BASE_DIR/extension"
+PROFILE_DIR="$BASE_DIR/chrome-profile"
+
+TMP_ZIP="$(mktemp /tmp/chrome-ext-XXXX.zip)"
 TMP_DIR="$(mktemp -d)"
-TMP_ZIP="$TMP_DIR/extension.zip"
 
-# Perfil isolado (MUITO mais seguro)
-PROFILE_DIR="$HOME/.config/chrome-extension-profile"
-
-# =========================
+# =========================================================
 # CLEANUP
-# =========================
+# =========================================================
 
 cleanup() {
+    rm -f "$TMP_ZIP"
     rm -rf "$TMP_DIR"
 }
 
 trap cleanup EXIT
 
-# =========================
-# DETECTA CHROME
-# =========================
+# =========================================================
+# DETECTA CHROME/CHROMIUM
+# =========================================================
 
-CHROME_BIN=""
+CHROME_BIN=$(
+    command -v google-chrome ||
+    command -v google-chrome-stable ||
+    command -v chromium ||
+    command -v chromium-browser
+)
 
-for bin in \
-    google-chrome \
-    google-chrome-stable \
-    chromium \
-    chromium-browser
-do
-    if command -v "$bin" >/dev/null 2>&1; then
-        CHROME_BIN="$(command -v "$bin")"
-        break
-    fi
-done
-
-if [[ -z "$CHROME_BIN" ]]; then
-    echo "❌ Chrome/Chromium não encontrado"
+if [[ -z "${CHROME_BIN:-}" ]]; then
+    echo "❌ Google Chrome/Chromium não encontrado"
     exit 1
 fi
 
-# =========================
-# DEPENDÊNCIAS
-# =========================
+echo "✅ Navegador encontrado:"
+echo "   $CHROME_BIN"
+echo
 
-for cmd in curl unzip; do
+# =========================================================
+# DEPENDÊNCIAS
+# =========================================================
+
+for cmd in curl unzip find mktemp; do
     if ! command -v "$cmd" >/dev/null 2>&1; then
         echo "❌ Dependência faltando: $cmd"
         exit 1
     fi
 done
 
-# =========================
-# BAIXA EXTENSÃO
-# =========================
+# =========================================================
+# PREPARA PASTAS
+# =========================================================
 
-echo "📦 Baixando extensão..."
+mkdir -p "$BASE_DIR"
 
-rm -rf "$EXT_PATH"
-mkdir -p "$EXT_PATH"
-
-curl \
-    --fail \
-    --location \
-    --silent \
-    --show-error \
-    "$ZIP_URL" \
-    -o "$TMP_ZIP"
-
-if [[ ! -s "$TMP_ZIP" ]]; then
-    echo "❌ Download falhou"
-    exit 1
-fi
-
-# =========================
-# EXTRAI
-# =========================
-
-echo "📂 Extraindo..."
-
-unzip -q "$TMP_ZIP" -d "$TMP_DIR/unpacked"
-
-SUBDIR="$(find "$TMP_DIR/unpacked" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
-
-if [[ -z "$SUBDIR" || ! -d "$SUBDIR" ]]; then
-    echo "❌ Estrutura ZIP inválida"
-    exit 1
-fi
-
-cp -R "$SUBDIR"/. "$EXT_PATH"/
-
-# =========================
-# VERIFICA MANIFEST
-# =========================
-
-if [[ ! -f "$EXT_PATH/manifest.json" ]]; then
-    echo "❌ manifest.json não encontrado"
-    exit 1
-fi
-
-echo "✅ Extensão válida"
-
-# =========================
-# ABRE CHROME
-# =========================
-
-echo "🚀 Abrindo Chrome..."
+rm -rf "$EXT_DIR"
+mkdir -p "$EXT_DIR"
 
 mkdir -p "$PROFILE_DIR"
 
+# =========================================================
+# BAIXA EXTENSÃO
+# =========================================================
+
+echo "📦 Baixando extensão..."
+echo
+
+curl -fsSL "$ZIP_URL" -o "$TMP_ZIP"
+
+if [[ ! -s "$TMP_ZIP" ]]; then
+    echo "❌ Falha ao baixar ZIP"
+    exit 1
+fi
+
+echo "✅ Download concluído"
+echo
+
+# =========================================================
+# EXTRAI
+# =========================================================
+
+echo "📂 Extraindo extensão..."
+echo
+
+unzip -q "$TMP_ZIP" -d "$TMP_DIR"
+
+SUBDIR="$(find "$TMP_DIR" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
+
+if [[ -z "${SUBDIR:-}" ]]; then
+    echo "❌ Estrutura do ZIP inválida"
+    exit 1
+fi
+
+shopt -s dotglob
+
+mv "$SUBDIR"/* "$EXT_DIR"/
+
+shopt -u dotglob
+
+# =========================================================
+# VERIFICA MANIFEST
+# =========================================================
+
+MANIFEST="$EXT_DIR/manifest.json"
+
+if [[ ! -f "$MANIFEST" ]]; then
+    echo "❌ manifest.json não encontrado"
+    echo
+    echo "Conteúdo encontrado:"
+    ls -la "$EXT_DIR"
+    exit 1
+fi
+
+echo "✅ manifest.json encontrado"
+echo
+
+# =========================================================
+# DETECTA MANIFEST VERSION
+# =========================================================
+
+MANIFEST_VERSION=$(
+    grep -o '"manifest_version"[[:space:]]*:[[:space:]]*[0-9]*' "$MANIFEST" \
+    | grep -o '[0-9]*' \
+    | head -n 1
+)
+
+if [[ -z "${MANIFEST_VERSION:-}" ]]; then
+    echo "⚠️ Não foi possível detectar manifest_version"
+else
+    echo "✅ Manifest V$MANIFEST_VERSION detectado"
+fi
+
+echo
+
+# =========================================================
+# MOSTRA ARQUIVOS
+# =========================================================
+
+echo "📁 Arquivos da extensão:"
+echo
+
+ls -la "$EXT_DIR"
+
+echo
+
+# =========================================================
+# FECHA CHROME ANTIGO
+# =========================================================
+
+echo "🛑 Fechando instâncias antigas..."
+echo
+
+pkill -f chrome 2>/dev/null || true
+pkill -f chromium 2>/dev/null || true
+
+sleep 3
+
+# =========================================================
+# INICIA CHROME
+# =========================================================
+
+echo "🚀 Abrindo Chrome..."
+echo
+
 "$CHROME_BIN" \
     --user-data-dir="$PROFILE_DIR" \
-    --disable-extensions-except="$EXT_PATH" \
-    --load-extension="$EXT_PATH" \
+    --load-extension="$EXT_DIR" \
+    --disable-extensions-except="$EXT_DIR" \
     --no-first-run \
-    >/dev/null 2>&1 &
+    --no-default-browser-check \
+    --enable-logging=stderr \
+    --v=1 \
+    &
 
 sleep 5
 
-# =========================
-# VERIFICA
-# =========================
+# =========================================================
+# VERIFICA PROCESSO
+# =========================================================
 
 if pgrep -f "$PROFILE_DIR" >/dev/null; then
-    echo "✅ Chrome iniciado"
-    echo "✅ Extensão carregada:"
-    echo "   $EXT_PATH"
+    echo
+    echo "✅ Chrome iniciado com sucesso"
+    echo
+    echo "📦 Extensão carregada em:"
+    echo "   $EXT_DIR"
+    echo
+    echo "👤 Perfil isolado:"
+    echo "   $PROFILE_DIR"
+    echo
+    echo "🌐 Abra:"
+    echo "   chrome://extensions"
+    echo
+    echo "🧩 Ative:"
+    echo "   Modo do desenvolvedor"
+    echo
 else
     echo "❌ Falha ao iniciar Chrome"
     exit 1
