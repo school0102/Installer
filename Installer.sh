@@ -1,77 +1,80 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
-set -Eeuo pipefail
+# ============================
+# Configurações
+# ============================
 
-# =========================================================
-# CONFIG
-# =========================================================
+GITHUB_REPO="https://github.com/school0102/Google-Chrome-Extension.git"
+EXT_PATH="$HOME/Google-Chrome-Extension"
+TEMP_PROFILE="$HOME/.chrome-temp-profile"
 
-ZIP_URL="https://github.com/school0102/Google-Chrome-Extension/archive/refs/heads/main.zip"
+# Detecta o Chrome ou Chromium
+CHROME_BIN=$(command -v google-chrome || command -v chromium)
 
-BASE_DIR="$HOME/.local/share/custom-extension-loader"
-EXT_DIR="$BASE_DIR/extension"
-PROFILE_DIR="$BASE_DIR/chrome-profile"
+# ============================
+# Função principal
+# ============================
 
-TMP_ZIP="$(mktemp /tmp/chrome-ext-XXXX.zip)"
-TMP_DIR="$(mktemp -d)"
+echo "🚀 Instalando/atualizando extensão do GitHub..."
 
-# =========================================================
-# CLEANUP
-# =========================================================
-
-cleanup() {
-    rm -f "$TMP_ZIP"
-    rm -rf "$TMP_DIR"
-}
-
-trap cleanup EXIT
-
-# =========================================================
-# DETECTA CHROME/CHROMIUM
-# =========================================================
-
-CHROME_BIN=$(
-    command -v google-chrome ||
-    command -v google-chrome-stable ||
-    command -v chromium ||
-    command -v chromium-browser
-)
-
-if [[ -z "${CHROME_BIN:-}" ]]; then
-    echo "❌ Google Chrome/Chromium não encontrado"
+# Verifica se o git está instalado
+if ! command -v git >/dev/null 2>&1; then
+    echo "❌ Git não encontrado. Instale o Git antes de continuar."
     exit 1
 fi
 
-echo "✅ Navegador encontrado:"
-echo "   $CHROME_BIN"
-echo
+# Clona ou atualiza a extensão
+if [ -d "$EXT_PATH" ]; then
+    echo "📦 Atualizando extensão existente..."
+    cd "$EXT_PATH" && git pull
+else
+    echo "📦 Clonando extensão..."
+    git clone "$GITHUB_REPO" "$EXT_PATH"
+fi
 
-# =========================================================
-# DEPENDÊNCIAS
-# =========================================================
+# Verifica se o manifest.json existe
+if [ ! -f "$EXT_PATH/manifest.json" ]; then
+    echo "❌ Arquivo manifest.json não encontrado em $EXT_PATH"
+    exit 1
+fi
 
-for cmd in curl unzip find mktemp; do
-    if ! command -v "$cmd" >/dev/null 2>&1; then
-        echo "❌ Dependência faltando: $cmd"
-        exit 1
-    fi
-done
+# Checa se o Chrome está instalado
+if [ -z "$CHROME_BIN" ]; then
+    echo "❌ Chrome ou Chromium não encontrado. Instale antes de continuar."
+    exit 1
+fi
 
-# =========================================================
-# PREPARA PASTAS
-# =========================================================
+# ============================
+# Fecha instâncias abertas do Chrome
+# ============================
 
-mkdir -p "$BASE_DIR"
+echo "🛑 Fechando instâncias abertas do Chrome (se houver)..."
+pkill -f "$CHROME_BIN" 2>/dev/null || true
+sleep 3
 
-rm -rf "$EXT_DIR"
-mkdir -p "$EXT_DIR"
+# ============================
+# Cria perfil temporário
+# ============================
 
-mkdir -p "$PROFILE_DIR"
+if [ ! -d "$TEMP_PROFILE" ]; then
+    echo "🗂️ Criando perfil temporário em $TEMP_PROFILE..."
+    mkdir -p "$TEMP_PROFILE"
+fi
 
-# =========================================================
-# BAIXA EXTENSÃO
-# =========================================================
+# ============================
+# Executa o Chrome com a extensão
+# ============================
 
+echo "🌟 Abrindo Chrome com a extensão em modo desenvolvedor..."
+"$CHROME_BIN" \
+    --user-data-dir="$TEMP_PROFILE" \
+    --load-extension="$EXT_PATH" \
+    --auto-open-devtools-for-tabs \
+    --disable-extensions-except="$EXT_PATH" \
+    --no-first-run \
+    >/dev/null 2>&1 &
+
+echo "✅ Chrome iniciado com a extensão!"
 echo "📦 Baixando extensão..."
 echo
 
