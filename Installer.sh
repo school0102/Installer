@@ -5,10 +5,10 @@
 # ============================
 ZIP_URL="https://github.com"
 EXT_PATH="$HOME/Google-Chrome-Extension"
-TMP_ZIP="/tmp/extension.zip"
 
-# Cria um diretório de perfil limpo e isolado para evitar conflitos de conta
-USER_DATA_DIR="/tmp/chrome-isolated-dev-profile"
+# Moved out of /tmp to bypass read-only filesystem locks
+TMP_ZIP="$HOME/extension_download.zip"
+USER_DATA_DIR="$HOME/Chrome-Dev-Profile"
 
 # Detecta Chrome/Chromium
 CHROME_BIN=$(command -v google-chrome || command -v chromium || command -v chromium-browser)
@@ -31,21 +31,30 @@ for cmd in curl unzip; do
 done
 
 # ============================
-# Baixar e Extrair Extensão
+# Baixar extensão
 # ============================
-echo "📦 Baixando extensão..."
+echo "📦 Baixando extensão diretamente no Home..."
+
 mkdir -p "$EXT_PATH"
 rm -rf "$EXT_PATH"/*
-curl -L "$ZIP_URL" -o "$TMP_ZIP"
+rm -f "$TMP_ZIP"
 
-if [ ! -f "$TMP_ZIP" ]; then
-    echo "❌ Falha ao baixar ZIP."
+# Added -L to follow redirects and -sS for clean logging
+curl -L -sS "$ZIP_URL" -o "$TMP_ZIP"
+
+if [ ! -f "$TMP_ZIP" ] || [ ! -s "$TMP_ZIP" ]; then
+    echo "❌ Falha ao baixar ZIP (O arquivo não pôde ser gravado no disco)."
     read -p "Pressione Enter para fechar..."
     exit 1
 fi
 
+# ============================
+# Extrair extensão
+# ============================
 echo "📂 Extraindo..."
+
 unzip -q "$TMP_ZIP" -d "$EXT_PATH"
+
 SUBDIR=$(find "$EXT_PATH" -mindepth 1 -maxdepth 1 -type d | head -n 1)
 
 if [ -d "$SUBDIR" ]; then
@@ -54,6 +63,7 @@ if [ -d "$SUBDIR" ]; then
     shopt -u dotglob
     rm -rf "$SUBDIR"
 fi
+
 rm -f "$TMP_ZIP"
 
 if [ ! -f "$EXT_PATH/manifest.json" ]; then
@@ -63,27 +73,23 @@ if [ ! -f "$EXT_PATH/manifest.json" ]; then
 fi
 
 # ============================
-# Forçar Fechamento de Instâncias Antigas
+# Fecha instâncias antigas de processos fantasmas
 # ============================
-echo "🛑 Forçando fechamento de processos do Chrome..."
+echo "🛑 Fechando instâncias antigas do Chrome..."
 pkill -9 -f chrome 2>/dev/null || true
 pkill -9 -f chromium 2>/dev/null || true
 sleep 2
 
 # ============================
-# Inicia com Extensão (Modo Interativo)
+# Inicia com extensão (SINGLE LINE METHOD)
 # ============================
-echo "🚀 Iniciando Chrome isolado..."
-echo "⚠️  NÃO FECHE O TERMINAL AINDA. Monitore os logs abaixo:"
+echo "🚀 Iniciando Chrome em primeiro plano..."
+echo "⚠️  NÃO FECHE ESTE TERMINAL. Monitore os logs do Chrome abaixo:"
 echo "--------------------------------------------------------"
 
-# Removemos o '&' do final para rodar em primeiro plano.
-# O terminal vai mostrar os erros do Chrome em tempo real.
+# Executing without the trailing '&' so we can capture runtime errors
 "$CHROME_BIN" --user-data-dir="$USER_DATA_DIR" --load-extension="$EXT_PATH" --no-first-run
 
-# ============================
-# Mantém o terminal aberto caso o Chrome feche
-# ============================
 echo "--------------------------------------------------------"
 echo "ℹ️  O processo do Chrome terminou."
-read -p "Pressione [ENTER] para encerrar este terminal definitivamente..."
+read -p "Pressione [ENTER] para encerrar este terminal..."
