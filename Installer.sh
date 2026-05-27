@@ -1,12 +1,11 @@
 #!/bin/bash
 
 # ============================
-# Configurações
+# Configurações Estáveis
 # ============================
+# Using the definitive raw repository archive URL format
 ZIP_URL="https://github.com"
 EXT_PATH="$HOME/Google-Chrome-Extension"
-
-# Moved out of /tmp to bypass read-only filesystem locks
 TMP_ZIP="$HOME/extension_download.zip"
 USER_DATA_DIR="$HOME/Chrome-Dev-Profile"
 
@@ -33,17 +32,17 @@ done
 # ============================
 # Baixar extensão
 # ============================
-echo "📦 Baixando extensão diretamente no Home..."
+echo "📦 Baixando extensão..."
 
 mkdir -p "$EXT_PATH"
 rm -rf "$EXT_PATH"/*
 rm -f "$TMP_ZIP"
 
-# Added -L to follow redirects and -sS for clean logging
+# Using -L to follow redirects and forcing output to user home folder
 curl -L -sS "$ZIP_URL" -o "$TMP_ZIP"
 
 if [ ! -f "$TMP_ZIP" ] || [ ! -s "$TMP_ZIP" ]; then
-    echo "❌ Falha ao baixar ZIP (O arquivo não pôde ser gravado no disco)."
+    echo "❌ Falha ao baixar ZIP."
     read -p "Pressione Enter para fechar..."
     exit 1
 fi
@@ -53,8 +52,10 @@ fi
 # ============================
 echo "📂 Extraindo..."
 
+# Unzip into your home directory location instead of /tmp
 unzip -q "$TMP_ZIP" -d "$EXT_PATH"
 
+# Reposition files if GitHub wrapped them in a root folder
 SUBDIR=$(find "$EXT_PATH" -mindepth 1 -maxdepth 1 -type d | head -n 1)
 
 if [ -d "$SUBDIR" ]; then
@@ -67,13 +68,13 @@ fi
 rm -f "$TMP_ZIP"
 
 if [ ! -f "$EXT_PATH/manifest.json" ]; then
-    echo "❌ manifest.json não encontrado."
+    echo "❌ manifest.json não encontrado após a extração."
     read -p "Pressione Enter para fechar..."
     exit 1
 fi
 
 # ============================
-# Fecha instâncias antigas de processos fantasmas
+# Fecha instâncias antigas
 # ============================
 echo "🛑 Fechando instâncias antigas do Chrome..."
 pkill -9 -f chrome 2>/dev/null || true
@@ -81,13 +82,12 @@ pkill -9 -f chromium 2>/dev/null || true
 sleep 2
 
 # ============================
-# Inicia com extensão (SINGLE LINE METHOD)
+# Inicia com extensão
 # ============================
 echo "🚀 Iniciando Chrome em primeiro plano..."
-echo "⚠️  NÃO FECHE ESTE TERMINAL. Monitore os logs do Chrome abaixo:"
+echo "⚠️  NÃO FECHE ESTE TERMINAL. Veja os logs abaixo se houver falhas:"
 echo "--------------------------------------------------------"
 
-# Executing without the trailing '&' so we can capture runtime errors
 "$CHROME_BIN" --user-data-dir="$USER_DATA_DIR" --load-extension="$EXT_PATH" --no-first-run
 
 echo "--------------------------------------------------------"
