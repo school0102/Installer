@@ -3,58 +3,49 @@
 # ============================
 # Configurações
 # ============================
-
 ZIP_URL="https://github.com"
 EXT_PATH="$HOME/Google-Chrome-Extension"
 TMP_ZIP="/tmp/extension.zip"
 
+# Cria um diretório de perfil limpo e isolado para evitar conflitos de conta
+USER_DATA_DIR="/tmp/chrome-isolated-dev-profile"
+
 # Detecta Chrome/Chromium
-CHROME_BIN=$(
-    command -v google-chrome ||
-    command -v chromium ||
-    command -v chromium-browser
-)
+CHROME_BIN=$(command -v google-chrome || command -v chromium || command -v chromium-browser)
 
 # ============================
 # Verificações
 # ============================
-
 if [ -z "$CHROME_BIN" ]; then
     echo "❌ Chrome/Chromium não encontrado."
+    read -p "Pressione Enter para fechar..."
     exit 1
 fi
 
 for cmd in curl unzip; do
     if ! command -v "$cmd" &> /dev/null; then
         echo "❌ $cmd não encontrado."
+        read -p "Pressione Enter para fechar..."
         exit 1
     fi
 done
 
 # ============================
-# Baixar extensão
+# Baixar e Extrair Extensão
 # ============================
-
 echo "📦 Baixando extensão..."
-
 mkdir -p "$EXT_PATH"
 rm -rf "$EXT_PATH"/*
-
 curl -L "$ZIP_URL" -o "$TMP_ZIP"
 
 if [ ! -f "$TMP_ZIP" ]; then
     echo "❌ Falha ao baixar ZIP."
+    read -p "Pressione Enter para fechar..."
     exit 1
 fi
 
-# ============================
-# Extrair extensão
-# ============================
-
 echo "📂 Extraindo..."
-
 unzip -q "$TMP_ZIP" -d "$EXT_PATH"
-
 SUBDIR=$(find "$EXT_PATH" -mindepth 1 -maxdepth 1 -type d | head -n 1)
 
 if [ -d "$SUBDIR" ]; then
@@ -63,43 +54,36 @@ if [ -d "$SUBDIR" ]; then
     shopt -u dotglob
     rm -rf "$SUBDIR"
 fi
-
 rm -f "$TMP_ZIP"
-
-# ============================
-# Verifica manifest
-# ============================
 
 if [ ! -f "$EXT_PATH/manifest.json" ]; then
     echo "❌ manifest.json não encontrado."
+    read -p "Pressione Enter para fechar..."
     exit 1
 fi
 
 # ============================
-# Descobre perfil padrão
+# Forçar Fechamento de Instâncias Antigas
 # ============================
-
-USER_DATA_DIR="$HOME/.config/google-chrome"
-
-if [ ! -d "$USER_DATA_DIR" ]; then
-    USER_DATA_DIR="$HOME/.config/chromium"
-fi
+echo "🛑 Forçando fechamento de processos do Chrome..."
+pkill -9 -f chrome 2>/dev/null || true
+pkill -9 -f chromium 2>/dev/null || true
+sleep 2
 
 # ============================
-# Fecha Chrome
+# Inicia com Extensão (Modo Interativo)
 # ============================
+echo "🚀 Iniciando Chrome isolado..."
+echo "⚠️  NÃO FECHE O TERMINAL AINDA. Monitore os logs abaixo:"
+echo "--------------------------------------------------------"
 
-echo "🛑 Fechando Chrome..."
-
-pkill -f chrome 2>/dev/null || true
-pkill -f chromium 2>/dev/null || true
-
-sleep 3
-
-# ============================
-# Inicia com extensão (SINGLE LINE METHOD)
-# ============================
-
-echo "🚀 Iniciando Chrome em modo debug..."
-
+# Removemos o '&' do final para rodar em primeiro plano.
+# O terminal vai mostrar os erros do Chrome em tempo real.
 "$CHROME_BIN" --user-data-dir="$USER_DATA_DIR" --load-extension="$EXT_PATH" --no-first-run
+
+# ============================
+# Mantém o terminal aberto caso o Chrome feche
+# ============================
+echo "--------------------------------------------------------"
+echo "ℹ️  O processo do Chrome terminou."
+read -p "Pressione [ENTER] para encerrar este terminal definitivamente..."
