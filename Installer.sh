@@ -1,95 +1,174 @@
 #!/bin/bash
 
-# ============================
-# Configurações Estáveis
-# ============================
-# Using the definitive raw repository archive URL format
-ZIP_URL="https://github.com"
+# ==========================================
+# Stable Chrome Extension Loader
+# ==========================================
+
+set -e
+
+# ==========================================
+# CONFIGURATION
+# ==========================================
+
+# IMPORTANT:
+# Replace this with the REAL GitHub repo ZIP URL
+#
+# Examples:
+# https://github.com/USER/REPO/archive/refs/heads/main.zip
+# https://github.com/USER/REPO/archive/refs/heads/master.zip
+#
+ZIP_URL="https://github.com/USER/REPO/archive/refs/heads/main.zip"
+
 EXT_PATH="$HOME/Google-Chrome-Extension"
 TMP_ZIP="$HOME/extension_download.zip"
 USER_DATA_DIR="$HOME/Chrome-Dev-Profile"
 
-# Detecta Chrome/Chromium
-CHROME_BIN=$(command -v google-chrome || command -v chromium || command -v chromium-browser)
+# ==========================================
+# DETECT CHROME / CHROMIUM
+# ==========================================
 
-# ============================
-# Verificações
-# ============================
+CHROME_BIN=$(
+    command -v google-chrome ||
+    command -v chromium ||
+    command -v chromium-browser
+)
+
+# ==========================================
+# CHECK DEPENDENCIES
+# ==========================================
+
 if [ -z "$CHROME_BIN" ]; then
-    echo "❌ Chrome/Chromium não encontrado."
-    read -p "Pressione Enter para fechar..."
+    echo "❌ Chrome/Chromium not found."
     exit 1
 fi
 
-for cmd in curl unzip; do
-    if ! command -v "$cmd" &> /dev/null; then
-        echo "❌ $cmd não encontrado."
-        read -p "Pressione Enter para fechar..."
+for cmd in curl unzip find; do
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+        echo "❌ Missing dependency: $cmd"
         exit 1
     fi
 done
 
-# ============================
-# Baixar extensão
-# ============================
-echo "📦 Baixando extensão..."
+# ==========================================
+# PREPARE FOLDERS
+# ==========================================
+
+echo "🧹 Cleaning previous files..."
 
 mkdir -p "$EXT_PATH"
+
 rm -rf "$EXT_PATH"/*
 rm -f "$TMP_ZIP"
 
-# Using -L to follow redirects and forcing output to user home folder
-curl -L -sS "$ZIP_URL" -o "$TMP_ZIP"
+# ==========================================
+# DOWNLOAD EXTENSION ZIP
+# ==========================================
 
-if [ ! -f "$TMP_ZIP" ] || [ ! -s "$TMP_ZIP" ]; then
-    echo "❌ Falha ao baixar ZIP."
-    read -p "Pressione Enter para fechar..."
+echo "📦 Downloading extension..."
+
+curl -L --fail --silent --show-error \
+    "$ZIP_URL" \
+    -o "$TMP_ZIP"
+
+# ==========================================
+# VERIFY ZIP
+# ==========================================
+
+if [ ! -f "$TMP_ZIP" ]; then
+    echo "❌ ZIP file was not downloaded."
     exit 1
 fi
 
-# ============================
-# Extrair extensão
-# ============================
-echo "📂 Extraindo..."
+if [ ! -s "$TMP_ZIP" ]; then
+    echo "❌ Downloaded ZIP is empty."
+    exit 1
+fi
 
-# Unzip into your home directory location instead of /tmp
+# Validate ZIP integrity
+if ! unzip -tq "$TMP_ZIP" >/dev/null 2>&1; then
+    echo "❌ Downloaded file is NOT a valid ZIP archive."
+    exit 1
+fi
+
+echo "✅ ZIP downloaded successfully."
+
+# ==========================================
+# EXTRACT EXTENSION
+# ==========================================
+
+echo "📂 Extracting extension..."
+
 unzip -q "$TMP_ZIP" -d "$EXT_PATH"
 
-# Reposition files if GitHub wrapped them in a root folder
-SUBDIR=$(find "$EXT_PATH" -mindepth 1 -maxdepth 1 -type d | head -n 1)
+# ==========================================
+# HANDLE GITHUB ROOT FOLDER
+# ==========================================
 
-if [ -d "$SUBDIR" ]; then
+ROOT_DIR=$(find "$EXT_PATH" -mindepth 1 -maxdepth 1 -type d | head -n 1)
+
+if [ -n "$ROOT_DIR" ]; then
+    echo "📁 Moving extension files..."
+
     shopt -s dotglob
-    mv "$SUBDIR"/* "$EXT_PATH"/ 2>/dev/null
+
+    mv "$ROOT_DIR"/* "$EXT_PATH"/ 2>/dev/null || true
+
     shopt -u dotglob
-    rm -rf "$SUBDIR"
+
+    rm -rf "$ROOT_DIR"
 fi
 
+# Remove temporary ZIP
 rm -f "$TMP_ZIP"
 
-if [ ! -f "$EXT_PATH/manifest.json" ]; then
-    echo "❌ manifest.json não encontrado após a extração."
-    read -p "Pressione Enter para fechar..."
+# ==========================================
+# FIND manifest.json
+# ==========================================
+
+MANIFEST=$(find "$EXT_PATH" -type f -name "manifest.json" | head -n 1)
+
+if [ -z "$MANIFEST" ]; then
+    echo "❌ manifest.json not found."
+    echo ""
+    echo "Extracted files:"
+    find "$EXT_PATH" | head -30
     exit 1
 fi
 
-# ============================
-# Fecha instâncias antigas
-# ============================
-echo "🛑 Fechando instâncias antigas do Chrome..."
+# If manifest is inside a subfolder,
+# use that folder as extension root
+REAL_EXT_PATH=$(dirname "$MANIFEST")
+
+echo "✅ manifest.json found:"
+echo "   $MANIFEST"
+
+# ==========================================
+# CLOSE OLD CHROME INSTANCES
+# ==========================================
+
+echo "🛑 Closing old Chrome processes..."
+
 pkill -9 -f chrome 2>/dev/null || true
 pkill -9 -f chromium 2>/dev/null || true
+
 sleep 2
 
-# ============================
-# Inicia com extensão
-# ============================
-echo "🚀 Iniciando Chrome em primeiro plano..."
-echo "⚠️  NÃO FECHE ESTE TERMINAL. Veja os logs abaixo se houver falhas:"
-echo "--------------------------------------------------------"
+# ==========================================
+# START CHROME WITH EXTENSION
+# ==========================================
 
-"$CHROME_BIN" --user-data-dir="$USER_DATA_DIR" --load-extension="$EXT_PATH" --no-first-run
+echo ""
+echo "🚀 Launching Chrome..."
+echo "📂 Extension path: $REAL_EXT_PATH"
+echo ""
+echo "⚠️ DO NOT CLOSE THIS TERMINAL"
+echo ""
 
-echo "--------------------------------------------------------"
-echo "ℹ️  O processo do Chrome terminou."
-read -p "Pressione [ENTER] para encerrar este terminal..."
+"$CHROME_BIN" \
+    --user-data-dir="$USER_DATA_DIR" \
+    --load-extension="$REAL_EXT_PATH" \
+    --no-first-run
+
+echo ""
+echo "ℹ️ Chrome closed."
+read -p "Press ENTER to exit..."
