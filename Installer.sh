@@ -34,6 +34,4 @@ echo "[+] Launching Chrome..."
 
 "$CHROME" \
   --enable-logging --v=1 \
-  --user-data-dir="$BASE_DIR/profile" \
-  --disable-extensions-except="$EXT_PATH" \
   --load-extension="$EXT_PATH"
