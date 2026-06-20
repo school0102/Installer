@@ -35,4 +35,6 @@ echo "[+] Launching Chrome..."
 "$CHROME" \
   --user-data-dir="$BASE_DIR/profile" \
   --disable-extensions-except="$EXT_PATH" \
-  --load-extension="$EXT_PATH"
+  --load-extension="$EXT_PATH" >/dev/null 2>&1 &
+  
+exit
